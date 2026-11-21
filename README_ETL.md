@@ -62,3 +62,7 @@ python app.py
 Open `http://127.0.0.1:5000`. Use Run checks now to create a monitoring run,
 Download report to export the latest run, or Inject defects (demo) to corrupt
 two target records before the next run.
+
+The home page also displays EV station, charger, session, and successful
+revenue totals. It includes an SQL file upload panel that executes uploaded
+`.sql` statements against `Smart_EV_Charging_System`.

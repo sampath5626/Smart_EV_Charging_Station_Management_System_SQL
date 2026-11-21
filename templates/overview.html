@@ -3,8 +3,8 @@
 {% block content %}
 <div class="page-header">
     <div>
-        <p class="eyebrow">EV Charging Reporting</p>
-        <h1>Data Quality Overview</h1>
+        <p class="eyebrow">Smart EV Charging</p>
+        <h1>EV Station Management Dashboard</h1>
     </div>
     <div class="actions">
         <form method="post" action="{{ url_for('run_checks_action') }}">
@@ -16,6 +16,49 @@
         </form>
     </div>
 </div>
+
+<section class="management-grid" aria-label="EV station statistics">
+    <article class="metric-card">
+        <span class="metric-icon">ST</span>
+        <div>
+            <span class="label">Charging stations</span>
+            <strong>{{ station_count }}</strong>
+        </div>
+    </article>
+    <article class="metric-card">
+        <span class="metric-icon">CH</span>
+        <div>
+            <span class="label">Chargers</span>
+            <strong>{{ charger_count }}</strong>
+        </div>
+    </article>
+    <article class="metric-card">
+        <span class="metric-icon">SE</span>
+        <div>
+            <span class="label">Charging sessions</span>
+            <strong>{{ session_count }}</strong>
+        </div>
+    </article>
+    <article class="metric-card">
+        <span class="metric-icon">IN</span>
+        <div>
+            <span class="label">Successful revenue</span>
+            <strong>₹{{ "%.2f"|format(payment_total) }}</strong>
+        </div>
+    </article>
+</section>
+
+<section class="upload-panel">
+    <div>
+        <p class="eyebrow">Source data</p>
+        <h2>Upload SQL file</h2>
+        <p>Execute a new <strong>.sql</strong> file against the EV source database.</p>
+    </div>
+    <form class="upload-form" method="post" action="{{ url_for('upload_source') }}" enctype="multipart/form-data">
+        <input type="file" name="source_file" accept=".sql,text/sql" required>
+        <button class="button primary" type="submit">Upload and run</button>
+    </form>
+</section>
 
 {% if latest %}
 <section class="summary {{ latest.Status|lower }}">
@@ -30,13 +73,24 @@
 </section>
 
 <section>
-    <h2>Dimensions</h2>
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">Latest monitoring run</p>
+            <h2>Data Quality Dimensions</h2>
+        </div>
+        <a href="{{ url_for('run_details', run_id=latest.RunID) }}">View check details</a>
+    </div>
     <div class="dimension-grid">
         {% for dimension in dimensions %}
         <article class="dimension-card {{ 'pass' if dimension.FailedChecks == 0 else 'fail' }}">
-            <span class="status-dot"></span>
-            <h3>{{ dimension.Dimension }}</h3>
-            <p>{{ dimension.PassedChecks }} passed · {{ dimension.FailedChecks }} failed</p>
+            <div class="dimension-card-header">
+                <h3>{{ dimension.Dimension }}</h3>
+                <span class="status-dot" title="{{ 'Passed' if dimension.FailedChecks == 0 else 'Failed' }}"></span>
+            </div>
+            <div class="dimension-counts">
+                <span><strong class="text-pass">{{ dimension.PassedChecks }}</strong> passed</span>
+                <span><strong class="text-fail">{{ dimension.FailedChecks }}</strong> failed</span>
+            </div>
         </article>
         {% endfor %}
     </div>

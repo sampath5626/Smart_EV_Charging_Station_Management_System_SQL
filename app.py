@@ -1,8 +1,10 @@
 import io
 import json
 import os
+from pathlib import Path
+from werkzeug.utils import secure_filename
 
-from flask import Flask, flash, redirect, render_template, send_file, url_for
+from flask import Flask, flash, redirect, render_template, request, send_file, url_for
 from openpyxl import Workbook
 
 from db import get_db
@@ -12,6 +14,9 @@ from inject_defects import inject_defects
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "ev-data-quality-demo")
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
+UPLOAD_FOLDER = Path(app.root_path) / "uploads"
+UPLOAD_FOLDER.mkdir(exist_ok=True)
 
 
 def fetch_all(database, sql, params=None):
@@ -56,7 +61,69 @@ def overview():
             """,
             (latest["RunID"],),
         )
-    return render_template("overview.html", latest=latest, dimensions=dimensions)
+    station_count = fetch_one(
+        "Smart_EV_Charging_System",
+        "SELECT COUNT(*) AS CountValue FROM ChargingStations",
+    )
+    charger_count = fetch_one(
+        "Smart_EV_Charging_System",
+        "SELECT COUNT(*) AS CountValue FROM Chargers",
+    )
+    session_count = fetch_one(
+        "Smart_EV_Charging_System",
+        "SELECT COUNT(*) AS CountValue FROM ChargingSessions",
+    )
+    payment_total = fetch_one(
+        "Smart_EV_Charging_System",
+        "SELECT COALESCE(SUM(Amount), 0) AS CountValue FROM Payments WHERE PaymentStatus = 'Success'",
+    )
+    return render_template(
+        "overview.html",
+        latest=latest,
+        dimensions=dimensions,
+        station_count=station_count["CountValue"],
+        charger_count=charger_count["CountValue"],
+        session_count=session_count["CountValue"],
+        payment_total=payment_total["CountValue"],
+    )
+
+
+@app.post("/actions/upload-source")
+def upload_source():
+    uploaded = request.files.get("source_file")
+    if not uploaded or not uploaded.filename:
+        flash("Choose a SQL file to upload.", "error")
+        return redirect(url_for("overview"))
+
+    filename = secure_filename(uploaded.filename)
+    if not filename.lower().endswith(".sql"):
+        flash("Only .sql files are supported.", "error")
+        return redirect(url_for("overview"))
+
+    saved_path = UPLOAD_FOLDER / filename
+    uploaded.save(saved_path)
+
+    connection = get_db("Smart_EV_Charging_System")
+    cursor = connection.cursor()
+    try:
+        sql_text = saved_path.read_text(encoding="utf-8")
+        statements = [
+            statement.strip()
+            for statement in sql_text.split(";")
+            if statement.strip()
+        ]
+        for statement in statements:
+            cursor.execute(statement)
+        connection.commit()
+        flash(f"Uploaded and executed {filename}.", "success")
+    except Exception as exc:
+        connection.rollback()
+        flash(f"SQL upload failed: {exc}", "error")
+    finally:
+        cursor.close()
+        connection.close()
+
+    return redirect(url_for("overview"))
 
 
 @app.route("/history")
