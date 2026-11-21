@@ -51,12 +51,12 @@
 <section class="upload-panel">
     <div>
         <p class="eyebrow">Source data</p>
-        <h2>Upload SQL file</h2>
-        <p>Execute a new <strong>.sql</strong> file against the EV source database.</p>
+        <h2>Upload Excel session data</h2>
+        <p>Import session rows from an <strong>.xlsx</strong> workbook into the EV source database.</p>
     </div>
     <form class="upload-form" method="post" action="{{ url_for('upload_source') }}" enctype="multipart/form-data">
-        <input type="file" name="source_file" accept=".sql,text/sql" required>
-        <button class="button primary" type="submit">Upload and run</button>
+        <input type="file" name="source_file" accept=".xlsx" required>
+        <button class="button primary" type="submit">Upload workbook</button>
     </form>
 </section>
 

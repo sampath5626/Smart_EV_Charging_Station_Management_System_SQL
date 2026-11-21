@@ -64,5 +64,14 @@ Download report to export the latest run, or Inject defects (demo) to corrupt
 two target records before the next run.
 
 The home page also displays EV station, charger, session, and successful
-revenue totals. It includes an SQL file upload panel that executes uploaded
-`.sql` statements against `Smart_EV_Charging_System`.
+revenue totals. Its Excel upload accepts `.xlsx` workbooks with a header row
+and session/payment columns. Demo workbooks are in `demo_uploads/`.
+
+Upload `demo_valid_session.xlsx` to add a valid session, or
+`demo_invalid_energy.xlsx` to add a session with negative energy. After either
+upload, run `python etl_load.py` and click **Run checks now**. The invalid
+sample should fail the Validity check. Workbooks must include the columns
+`user_id`, `vehicle_id`, `charger_id`, `booking_start`, `booking_end`,
+`session_start`, `estimated_completion`, `session_end`, `energy_kwh`,
+`session_status`, `booking_status`, `payment_amount`, `payment_method`,
+`payment_status`, and `transaction_date`.

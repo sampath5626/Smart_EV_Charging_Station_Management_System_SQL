@@ -1,11 +1,9 @@
 import io
 import json
 import os
-from pathlib import Path
-from werkzeug.utils import secure_filename
 
 from flask import Flask, flash, redirect, render_template, request, send_file, url_for
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 from db import get_db
 from dq_checks import run_checks
@@ -15,8 +13,6 @@ from inject_defects import inject_defects
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "ev-data-quality-demo")
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
-UPLOAD_FOLDER = Path(app.root_path) / "uploads"
-UPLOAD_FOLDER.mkdir(exist_ok=True)
 
 
 def fetch_all(database, sql, params=None):
@@ -92,33 +88,150 @@ def overview():
 def upload_source():
     uploaded = request.files.get("source_file")
     if not uploaded or not uploaded.filename:
-        flash("Choose a SQL file to upload.", "error")
+        flash("Choose an Excel workbook to upload.", "error")
         return redirect(url_for("overview"))
 
-    filename = secure_filename(uploaded.filename)
-    if not filename.lower().endswith(".sql"):
-        flash("Only .sql files are supported.", "error")
+    if not uploaded.filename.lower().endswith(".xlsx"):
+        flash("Only .xlsx workbooks are supported.", "error")
         return redirect(url_for("overview"))
-
-    saved_path = UPLOAD_FOLDER / filename
-    uploaded.save(saved_path)
 
     connection = get_db("Smart_EV_Charging_System")
     cursor = connection.cursor()
     try:
-        sql_text = saved_path.read_text(encoding="utf-8")
-        statements = [
-            statement.strip()
-            for statement in sql_text.split(";")
-            if statement.strip()
-        ]
-        for statement in statements:
-            cursor.execute(statement)
+        workbook = load_workbook(uploaded, read_only=True, data_only=True)
+        sheet = workbook.active
+        rows = sheet.iter_rows(values_only=True)
+        headers = next(rows, None)
+        if not headers:
+            raise ValueError("The workbook is empty.")
+
+        columns = [str(value).strip().lower() if value is not None else "" for value in headers]
+        required = {
+            "user_id", "vehicle_id", "charger_id", "booking_start",
+            "booking_end", "session_start", "estimated_completion",
+            "session_end", "energy_kwh", "session_status", "booking_status",
+            "payment_amount", "payment_method", "payment_status", "transaction_date",
+        }
+        missing = sorted(required.difference(columns))
+        if missing:
+            raise ValueError(f"Missing required columns: {', '.join(missing)}.")
+
+        positions = {name: columns.index(name) for name in required}
+        allowed_session_statuses = {"InProgress", "Completed", "Interrupted", "Failed"}
+        allowed_booking_statuses = {"Pending", "Confirmed", "Cancelled", "Completed", "NoShow"}
+        allowed_payment_methods = {"Wallet", "Card", "UPI", "NetBanking", "Cash"}
+        allowed_payment_statuses = {"Pending", "Success", "Failed", "Refunded"}
+        imported = 0
+
+        for row_number, values in enumerate(rows, start=2):
+            if not values or all(value is None for value in values):
+                continue
+            data = {
+                name: values[position] if position < len(values) else None
+                for name, position in positions.items()
+            }
+            if any(data[name] is None for name in required):
+                raise ValueError(f"Row {row_number} has blank required values.")
+            if data["session_status"] not in allowed_session_statuses:
+                raise ValueError(f"Row {row_number} has an invalid session_status.")
+            if data["booking_status"] not in allowed_booking_statuses:
+                raise ValueError(f"Row {row_number} has an invalid booking_status.")
+            if data["payment_method"] not in allowed_payment_methods:
+                raise ValueError(f"Row {row_number} has an invalid payment_method.")
+            if data["payment_status"] not in allowed_payment_statuses:
+                raise ValueError(f"Row {row_number} has an invalid payment_status.")
+
+            cursor.execute(
+                """
+                SELECT
+                    EXISTS(
+                        SELECT 1 FROM Users
+                        WHERE UserID = %s
+                    ) AS UserExists,
+                    EXISTS(
+                        SELECT 1 FROM EVVehicles
+                        WHERE VehicleID = %s AND UserID = %s
+                    ) AS VehicleMatchesUser,
+                    EXISTS(
+                        SELECT 1 FROM Chargers
+                        WHERE ChargerID = %s
+                    ) AS ChargerExists
+                """,
+                (
+                    data["user_id"], data["vehicle_id"], data["user_id"],
+                    data["charger_id"],
+                ),
+            )
+            user_exists, vehicle_matches_user, charger_exists = cursor.fetchone()
+            if not user_exists or not vehicle_matches_user or not charger_exists:
+                invalid_ids = []
+                if not user_exists:
+                    invalid_ids.append(f"user_id={data['user_id']}")
+                if not vehicle_matches_user:
+                    invalid_ids.append(
+                        f"vehicle_id={data['vehicle_id']} does not belong "
+                        f"to user_id={data['user_id']}"
+                    )
+                if not charger_exists:
+                    invalid_ids.append(f"charger_id={data['charger_id']}")
+                raise ValueError(
+                    f"Row {row_number} has invalid references: "
+                    f"{'; '.join(invalid_ids)}."
+                )
+
+            cursor.execute(
+                """
+                INSERT INTO Bookings
+                    (UserID, VehicleID, ChargerID, BookingDate, StartTime, EndTime, Status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    data["user_id"], data["vehicle_id"], data["charger_id"],
+                    data["booking_start"].date(), data["booking_start"],
+                    data["booking_end"], data["booking_status"],
+                ),
+            )
+            booking_id = cursor.lastrowid
+            cursor.execute(
+                """
+                INSERT INTO ChargingSessions
+                    (BookingID, UserID, VehicleID, ChargerID, StartTime,
+                     EstimatedCompletionTime, EndTime, EnergyDeliveredKWh, Status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    booking_id, data["user_id"], data["vehicle_id"],
+                    data["charger_id"], data["session_start"],
+                    data["estimated_completion"], data["session_end"],
+                    data["energy_kwh"], data["session_status"],
+                ),
+            )
+            session_id = cursor.lastrowid
+            cursor.execute(
+                """
+                INSERT INTO Payments
+                    (UserID, SessionID, Amount, PaymentMethod, PaymentStatus, TransactionDate)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    data["user_id"], session_id, data["payment_amount"],
+                    data["payment_method"], data["payment_status"],
+                    data["transaction_date"],
+                ),
+            )
+            imported += 1
+
+        if imported == 0:
+            raise ValueError("The workbook has no data rows.")
+
         connection.commit()
-        flash(f"Uploaded and executed {filename}.", "success")
+        workbook.close()
+        flash(f"Imported {imported} session row(s). Run ETL and checks to see results.", "success")
     except Exception as exc:
+        if "workbook" in locals():
+            workbook.close()
         connection.rollback()
-        flash(f"SQL upload failed: {exc}", "error")
+        flash(f"Excel upload failed: {exc}", "error")
     finally:
         cursor.close()
         connection.close()
