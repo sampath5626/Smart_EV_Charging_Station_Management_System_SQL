@@ -46,3 +46,19 @@ The ETL performs a full load from `Smart_EV_Charging_System` into the separate
 
 The load is transactional. It replaces the target fact and aggregate tables only
 when the complete extraction and target writes succeed.
+
+## Frontend
+
+Install the web dependencies and start the Flask application:
+
+```powershell
+python -m pip install -r requirements.txt
+python setup_databases.py
+$env:SOURCE_PASSWORD="root"
+$env:TARGET_PASSWORD="root"
+python app.py
+```
+
+Open `http://127.0.0.1:5000`. Use Run checks now to create a monitoring run,
+Download report to export the latest run, or Inject defects (demo) to corrupt
+two target records before the next run.

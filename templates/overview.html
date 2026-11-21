@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">EV Charging Reporting</p>
+        <h1>Data Quality Overview</h1>
+    </div>
+    <div class="actions">
+        <form method="post" action="{{ url_for('run_checks_action') }}">
+            <button class="button primary" type="submit">Run checks now</button>
+        </form>
+        <a class="button secondary" href="{{ url_for('download_report') }}">Download report</a>
+        <form method="post" action="{{ url_for('inject_defects_action') }}">
+            <button class="button danger" type="submit">Inject defects (demo)</button>
+        </form>
+    </div>
+</div>
+
+{% if latest %}
+<section class="summary {{ latest.Status|lower }}">
+    <div>
+        <span class="label">Latest run</span>
+        <strong>{{ latest.Status }}</strong>
+    </div>
+    <div><span class="label">Total checks</span><strong>{{ latest.TotalChecks }}</strong></div>
+    <div><span class="label">Passed</span><strong class="text-pass">{{ latest.PassedChecks }}</strong></div>
+    <div><span class="label">Failed</span><strong class="text-fail">{{ latest.FailedChecks }}</strong></div>
+    <div><span class="label">Run date</span><strong>{{ latest.RunDate }}</strong></div>
+</section>
+
+<section>
+    <h2>Dimensions</h2>
+    <div class="dimension-grid">
+        {% for dimension in dimensions %}
+        <article class="dimension-card {{ 'pass' if dimension.FailedChecks == 0 else 'fail' }}">
+            <span class="status-dot"></span>
+            <h3>{{ dimension.Dimension }}</h3>
+            <p>{{ dimension.PassedChecks }} passed · {{ dimension.FailedChecks }} failed</p>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% else %}
+<section class="empty-state">
+    <h2>No monitoring runs yet</h2>
+    <p>Run the checks to create the first data-quality report.</p>
+</section>
+{% endif %}
+{% endblock %}

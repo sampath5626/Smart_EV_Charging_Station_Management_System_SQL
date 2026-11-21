@@ -1,0 +1,23 @@
+USE ev_reporting;
+
+CREATE TABLE IF NOT EXISTS dq_runs (
+    RunID INT AUTO_INCREMENT PRIMARY KEY,
+    RunDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    TotalChecks INT NOT NULL DEFAULT 0,
+    PassedChecks INT NOT NULL DEFAULT 0,
+    FailedChecks INT NOT NULL DEFAULT 0,
+    Status ENUM('Passed','Failed') NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS dq_check_results (
+    ResultID INT AUTO_INCREMENT PRIMARY KEY,
+    RunID INT NOT NULL,
+    CheckName VARCHAR(100) NOT NULL,
+    Dimension VARCHAR(50) NOT NULL,
+    TableTested VARCHAR(100) NOT NULL,
+    Result ENUM('Passed','Failed') NOT NULL,
+    BadRecordCount INT NOT NULL DEFAULT 0,
+    SampleFailingRows JSON NULL,
+    CheckedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (RunID) REFERENCES dq_runs(RunID)
+);

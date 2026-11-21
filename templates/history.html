@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">Monitoring</p>
+        <h1>Run History</h1>
+    </div>
+</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Total checks</th>
+                <th>Passed</th>
+                <th>Failed</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for run in runs %}
+            <tr>
+                <td>{{ run.RunDate }}</td>
+                <td>{{ run.TotalChecks }}</td>
+                <td class="text-pass">{{ run.PassedChecks }}</td>
+                <td class="text-fail">{{ run.FailedChecks }}</td>
+                <td><span class="badge {{ run.Status|lower }}">{{ run.Status }}</span></td>
+                <td><a href="{{ url_for('run_details', run_id=run.RunID) }}">View details</a></td>
+            </tr>
+        {% else %}
+            <tr><td colspan="6" class="empty">No runs have been recorded.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

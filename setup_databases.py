@@ -35,6 +35,7 @@ def main():
 
     try:
         apply_sql_file(connection, "sql/target_schema.sql")
+        apply_sql_file(connection, "sql/dq_schema.sql")
     finally:
         connection.close()
 
