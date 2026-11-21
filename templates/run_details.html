@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">Run {{ run.RunID }} · {{ run.RunDate }}</p>
+        <h1>Run Details</h1>
+    </div>
+</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Check name</th>
+                <th>Dimension</th>
+                <th>Table</th>
+                <th>Result</th>
+                <th>Bad records</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for result in results %}
+            <tr>
+                <td>{{ result.CheckName }}</td>
+                <td>{{ result.Dimension }}</td>
+                <td>{{ result.TableTested }}</td>
+                <td><span class="badge {{ result.Result|lower }}">{{ result.Result }}</span></td>
+                <td>{{ result.BadRecordCount }}</td>
+                <td>
+                    {% if result.Result == 'Failed' %}
+                    <a href="{{ url_for('failing_records', run_id=run.RunID, result_id=result.ResultID) }}">View failing rows</a>
+                    {% else %}-{% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="6" class="empty">No check results.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
