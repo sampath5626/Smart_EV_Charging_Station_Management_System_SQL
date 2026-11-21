@@ -3,12 +3,12 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}EV Data Quality Monitor{% endblock %}</title>
+    <title>{% block title %}EV Station Management System{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <nav class="topbar">
-        <a class="brand" href="{{ url_for('overview') }}">EV Data Quality</a>
+        <a class="brand" href="{{ url_for('overview') }}">EV Station Management</a>
         <div class="nav-links">
             <a href="{{ url_for('overview') }}">Overview</a>
             <a href="{{ url_for('history') }}">Run History</a>
